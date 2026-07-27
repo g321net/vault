@@ -64,8 +64,9 @@ echo 'P@ssw0rd!2024' | vault add db_password -t database
 # SSH 密钥也可以存（包括换行）
 cat ~/.ssh/id_ed25519 | vault add ssh_key_work -t ssh
 
-# 更新已有密钥
+# 更新已有密钥（同名覆盖，提示"已更新"而非"已保存"）
 vault add openai_key sk-new-key-xxxxx -t api
+# ✓ 已更新: openai_key
 
 # 配对密钥（Access Key ID + Secret Access Key）
 vault add aws_prod --pair-id AKIAIOSFODNN7EXAMPLE --pair-secret wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY -t aws
