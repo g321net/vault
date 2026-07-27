@@ -1,0 +1,5 @@
+#!/bin/bash
+# vault — 密钥保管箱快捷入口
+# 将此脚本所在目录加入 PATH，或创建别名 alias vault='python3 /path/to/vault.py'
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+exec /Users/rush/.workbuddy/binaries/python/envs/vault/bin/python3 "$SCRIPT_DIR/vault.py" "$@"
