@@ -291,3 +291,28 @@ def import_backup(input_path: str, overwrite: bool = False) -> dict:
     conn.commit()
     conn.close()
     return stats
+
+
+# ─── 主密码更换 ────────────────────────────────────────────
+
+def re_encrypt_all(old_key: bytes, new_key: bytes) -> int:
+    """用新密钥重新加密所有条目，返回条目数"""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT key, encrypted, tag FROM secrets"
+    ).fetchall()
+
+    count = 0
+    for row in rows:
+        key_name, encrypted, tag = row
+        plaintext = decrypt_value(old_key, encrypted)
+        new_encrypted = encrypt_value(new_key, plaintext)
+        conn.execute(
+            "UPDATE secrets SET encrypted = ?, updated_at = ? WHERE key = ?",
+            (new_encrypted, _now_iso(), key_name),
+        )
+        count += 1
+
+    conn.commit()
+    conn.close()
+    return count

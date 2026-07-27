@@ -43,6 +43,7 @@ from vault_core import (
     session_clear,
     session_refresh,
     session_remaining,
+    encrypt_value,
     load_config,
     save_config,
     ensure_vault_dir,
@@ -62,6 +63,7 @@ from vault_db import (
     add_pair,
     get_pair_id,
     get_pair_secret,
+    re_encrypt_all,
 )
 
 
@@ -269,6 +271,40 @@ def cmd_exec(args) -> None:
     sys.exit(proc.returncode)
 
 
+def cmd_chpass() -> None:
+    """更换主密码 — 用新密码重新加密所有条目"""
+    old_key = session_get_key()
+    if old_key is None:
+        print("错误: 保险库未解锁，请先执行 vault unlock", file=sys.stderr)
+        sys.exit(1)
+
+    old_password = getpass.getpass("当前主密码: ")
+    if not verify_master_password(old_password):
+        print("错误: 当前主密码不正确", file=sys.stderr)
+        sys.exit(1)
+
+    new_password = getpass.getpass("新主密码: ")
+    if len(new_password) < 8:
+        print("错误: 新主密码长度至少 8 位", file=sys.stderr)
+        sys.exit(1)
+    confirm = getpass.getpass("确认新主密码: ")
+    if new_password != confirm:
+        print("错误: 两次输入的密码不一致", file=sys.stderr)
+        sys.exit(1)
+
+    new_key = derive_key(new_password)
+    count = re_encrypt_all(old_key, new_key)
+
+    # 更新验证令牌
+    config = load_config()
+    config["verify_token"] = encrypt_value(new_key, "VAULT_OK").hex()
+    save_config(config)
+
+    # 更新会话密钥
+    session_set_key(new_key)
+    print(f"✓ 主密码已更换，{count} 条密钥已重新加密")
+
+
 def cmd_status() -> None:
     if not db_exists():
         print("保险库: 未初始化")
@@ -402,6 +438,8 @@ def main():
 
     sub.add_parser("touch", help="刷新会话时间戳（无需密码）")
 
+    sub.add_parser("chpass", help="更换主密码")
+
     p_config = sub.add_parser("config", help="管理配置")
     p_config_sub = p_config.add_subparsers(dest="config_cmd")
     p_config_sub.add_parser("get", help="查看配置").add_argument("key", nargs="?", default=None, help="配置项名")
@@ -431,6 +469,7 @@ def main():
         "import": lambda: cmd_import(args),
         "exec": lambda: cmd_exec(args),
         "touch": cmd_touch,
+        "chpass": cmd_chpass,
         "config": lambda: cmd_config(args),
         "status": cmd_status,
     }

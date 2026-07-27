@@ -359,6 +359,44 @@ def run_tests():
     delete_secret("aws_test")
     delete_secret("gcp_key")
 
+    # 18. chpass — 更换主密码
+    print("\n18. 更换主密码")
+    from vault_db import re_encrypt_all
+    add_secret("chpass_test", "secret-before-chpass", tag="test")
+    val_before = get_secret("chpass_test")
+    check("chpass: 改密码前可读", val_before == "secret-before-chpass")
+
+    old_key = derive_key(TEST_PASSWORD)
+    NEW_PASSWORD = "new-master-password-456"
+    new_key = derive_key(NEW_PASSWORD)
+    count = re_encrypt_all(old_key, new_key)
+    check("chpass: re_encrypt 3 条", count == 3)
+
+    config = load_config()
+    config["verify_token"] = encrypt_value(new_key, "VAULT_OK").hex()
+    save_config(config)
+
+    # 旧密钥应无法解密
+    try:
+        get_secret("chpass_test")
+        check("chpass: 旧密钥解密失败", False)
+    except Exception:
+        check("chpass: 旧密钥解密失败", True)
+
+    # 用新密钥重新会话，验证可读
+    session_set_key(new_key)
+    val_after = get_secret("chpass_test")
+    check("chpass: 新密钥可读", val_after == "secret-before-chpass")
+    check("chpass: 新密码验证通过", verify_master_password(NEW_PASSWORD))
+
+    delete_secret("chpass_test")
+    # 恢复原始密钥用于后续测试清理
+    re_encrypt_all(new_key, old_key)
+    config = load_config()
+    config["verify_token"] = encrypt_value(old_key, "VAULT_OK").hex()
+    save_config(config)
+    session_set_key(old_key)
+
     print(f"\n{'='*40}")
     print(f"结果: {passed} 通过, {failed} 失败")
     return failed == 0
