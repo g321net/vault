@@ -23,7 +23,8 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
 
 # ─── 路径常量 ───────────────────────────────────────────────
-VAULT_DIR = Path.home() / ".vault"
+_VAULT_HOME = os.environ.get("VAULT_HOME", str(Path.home() / ".vault"))
+VAULT_DIR = Path(_VAULT_HOME)
 SALT_PATH = VAULT_DIR / "salt"
 CONFIG_PATH = VAULT_DIR / "config.json"
 SESSION_PATH = VAULT_DIR / ".session"

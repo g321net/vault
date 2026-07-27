@@ -5,7 +5,6 @@
 
 import json
 import os
-import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -14,11 +13,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from vault_core import (
-    VAULT_DIR,
-    SALT_PATH,
-    CONFIG_PATH,
-    SESSION_PATH,
-    VAULT_DB,
     derive_key,
     verify_master_password,
     session_set_key,
@@ -50,25 +44,33 @@ from vault_db import (
 )
 
 TEST_PASSWORD = "test-master-pw-123"
-TEST_VAULT_DIR = Path.home() / ".vault_test_backup"
+
+# 测试使用独立的 vault 目录，永远不碰用户真实数据
+TEST_VAULT_DIR = Path(tempfile.mkdtemp(prefix="vault_test_"))
+os.environ["VAULT_HOME"] = str(TEST_VAULT_DIR)
+
+# 更新当前进程中的模块路径（已在 vault_core import 后设置 env，需刷新）
+import vault_core
+vault_core.VAULT_DIR = TEST_VAULT_DIR
+vault_core.SALT_PATH = TEST_VAULT_DIR / "salt"
+vault_core.CONFIG_PATH = TEST_VAULT_DIR / "config.json"
+vault_core.SESSION_PATH = TEST_VAULT_DIR / ".session"
+vault_core.VAULT_DB = TEST_VAULT_DIR / "vault.db"
+import vault_db
+vault_db.VAULT_DB = vault_core.VAULT_DB
 
 
 def setup():
-    """保存现有 vault 并创建干净的测试环境"""
-    if VAULT_DIR.exists():
-        if TEST_VAULT_DIR.exists():
-            shutil.rmtree(TEST_VAULT_DIR)
-        shutil.copytree(VAULT_DIR, TEST_VAULT_DIR)
-        shutil.rmtree(VAULT_DIR)
+    """创建干净的测试环境（独立目录，不影响用户数据）"""
+    vault_core.ensure_vault_dir()
 
 
 def teardown():
-    """恢复原有 vault"""
-    if VAULT_DIR.exists():
-        shutil.rmtree(VAULT_DIR)
-    if TEST_VAULT_DIR.exists():
-        shutil.copytree(TEST_VAULT_DIR, VAULT_DIR)
-        shutil.rmtree(TEST_VAULT_DIR)
+    """清理测试环境"""
+    import shutil as _shutil
+    test_dir = vault_core.VAULT_DIR
+    if test_dir.exists():
+        _shutil.rmtree(test_dir)
 
 
 def run_tests():
@@ -94,7 +96,7 @@ def run_tests():
     check("wrong password rejected", not verify_master_password("wrong"))
     session_set_key(key)
     check("session_key 可获取", session_get_key() is not None)
-    check("盐值文件存在", SALT_PATH.exists())
+    check("盐值文件存在", vault_core.SALT_PATH.exists())
 
     # 2. Add
     print("\n2. 添加密钥")
