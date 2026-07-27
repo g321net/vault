@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 rush
+# SPDX-License-Identifier: MIT
 """vault 端到端功能测试"""
 
 import json

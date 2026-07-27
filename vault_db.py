@@ -1,3 +1,5 @@
+# Copyright (c) 2026 rush
+# SPDX-License-Identifier: MIT
 """
 vault_db.py — SQLite 数据库操作模块
 

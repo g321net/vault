@@ -1,3 +1,5 @@
+# Copyright (c) 2026 rush
+# SPDX-License-Identifier: MIT
 """
 vault_core.py — 核心加密、会话、配置模块
 

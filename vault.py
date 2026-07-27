@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 rush
+# SPDX-License-Identifier: MIT
 """
 vault — 本地密钥保管箱
 
