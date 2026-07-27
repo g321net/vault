@@ -117,8 +117,8 @@ def cmd_lock() -> None:
 def cmd_add(args) -> None:
     # 配对模式
     if args.pair_id and args.pair_secret:
-        add_pair(args.key, args.pair_id, args.pair_secret, args.tag or "")
-        print(f"✓ 已保存配对密钥: {args.key}")
+        updated = add_pair(args.key, args.pair_id, args.pair_secret, args.tag or "")
+        print(f"✓ 已更新配对密钥: {args.key}" if updated else f"✓ 已保存配对密钥: {args.key}")
         return
 
     if args.value is None and not sys.stdin.isatty():
@@ -130,8 +130,8 @@ def cmd_add(args) -> None:
         print("配对: vault add <key> --pair-id <ID> --pair-secret <Secret>", file=sys.stderr)
         sys.exit(1)
 
-    add_secret(args.key, args.value, args.tag or "")
-    print(f"✓ 已保存: {args.key}")
+    updated = add_secret(args.key, args.value, args.tag or "")
+    print(f"✓ 已更新: {args.key}" if updated else f"✓ 已保存: {args.key}")
 
 
 def cmd_get(args) -> None:

@@ -61,8 +61,8 @@ def db_exists() -> bool:
 
 # ─── CRUD ───────────────────────────────────────────────────
 
-def add_secret(key_name: str, value: str, tag: str = "") -> None:
-    """添加或更新密钥"""
+def add_secret(key_name: str, value: str, tag: str = "") -> bool:
+    """添加或更新密钥，返回 True 表示更新了已有条目"""
     key = require_session_key()
     encrypted = encrypt_value(key, value)
     now = _now_iso()
@@ -72,7 +72,8 @@ def add_secret(key_name: str, value: str, tag: str = "") -> None:
         "SELECT created_at FROM secrets WHERE key = ?", (key_name,)
     ).fetchone()
 
-    if existing:
+    updated = existing is not None
+    if updated:
         conn.execute(
             "UPDATE secrets SET encrypted = ?, tag = ?, updated_at = ? WHERE key = ?",
             (encrypted, tag, now, key_name),
@@ -85,6 +86,7 @@ def add_secret(key_name: str, value: str, tag: str = "") -> None:
 
     conn.commit()
     conn.close()
+    return updated
 
 
 def get_secret(key_name: str) -> Optional[str]:
@@ -171,10 +173,10 @@ def get_all_tags() -> list[str]:
 
 # ─── 配对密钥 (Access Key ID + Secret Access Key) ──────────
 
-def add_pair(key_name: str, pair_id: str, pair_secret: str, tag: str = "") -> None:
-    """存储配对密钥：内部以 JSON {id, secret} 格式加密"""
+def add_pair(key_name: str, pair_id: str, pair_secret: str, tag: str = "") -> bool:
+    """存储配对密钥，返回 True 表示更新了已有条目"""
     payload = json.dumps({"id": pair_id, "secret": pair_secret})
-    add_secret(key_name, payload, tag)
+    return add_secret(key_name, payload, tag)
 
 
 def get_pair_id(key_name: str) -> Optional[str]:
