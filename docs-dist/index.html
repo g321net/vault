@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vault — 本地密钥保管箱</title>
+<style>
+:root { color-scheme: dark; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; line-height: 1.6; }
+a { color: #58a6ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+header { text-align: center; padding: 60px 0 40px; }
+header h1 { font-size: 2.5em; color: #f0f6fc; }
+header p { color: #8b949e; font-size: 1.1em; margin-top: 8px; }
+.badges { display: flex; gap: 10px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+.badge { background: #21262d; border: 1px solid #30363d; border-radius: 20px; padding: 4px 14px; font-size: 0.85em; color: #8b949e; }
+.badge.green { color: #3fb950; border-color: #3fb950; }
+section { margin: 40px 0; }
+h2 { color: #f0f6fc; font-size: 1.4em; border-bottom: 1px solid #21262d; padding-bottom: 8px; margin-bottom: 16px; }
+h3 { color: #f0f6fc; margin: 20px 0 10px; }
+pre { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px; overflow-x: auto; font-size: 0.9em; }
+code { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.9em; }
+.cmd { color: #7ee787; }
+.comment { color: #8b949e; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+th, td { text-align: left; padding: 8px 12px; border: 1px solid #30363d; }
+th { background: #161b22; color: #f0f6fc; }
+td:first-child code { color: #7ee787; }
+li { margin: 6px 0; padding-left: 8px; }
+.flow { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 24px; font-family: monospace; white-space: pre; overflow-x: auto; font-size: 0.85em; color: #8b949e; margin: 12px 0; }
+.flow .h { color: #7ee787; }
+footer { text-align: center; padding: 40px 0; color: #484f58; font-size: 0.85em; }
+footer a { color: #484f58; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>Vault</h1>
+  <p>本地密钥保管箱 — 安全存储账号密码、API 密钥、SSH Key，支持 AI 助手免密调用</p>
+  <div class="badges">
+    <span class="badge">Python 3.13</span>
+    <span class="badge green">75 项测试通过</span>
+    <span class="badge">MIT</span>
+    <span class="badge">AES-256-GCM</span>
+  </div>
+</header>
+
+<section>
+<h2>为什么需要它？</h2>
+<p>在 AI 助手中使用 API Token 时，密钥会出现在对话上下文里。一旦会话日志泄漏，密钥也随之暴露。</p>
+<p>Vault 通过 <code>vault exec</code> 将密钥注入子进程的<strong>环境变量</strong>，明文不经过 stdout，AI 永远看不到密钥值。</p>
+
+<div class="flow">
+<span class="h">vault exec</span> github_token -- gh api /user/repos
+         │                         │
+         ▼                         ▼
+   密钥解密为 env var        只有 gh 的输出进入上下文
+   $VAULT_VALUE=ghp_xxx     <span class="h">AI 看不到 ghp_xxx</span>
+</div>
+</section>
+
+<section>
+<h2>快速开始</h2>
+<pre><span class="comment"># 安装</span>
+git clone git@github.com:g321net/vault.git
+<span class="cmd">cd</span> vault
+pip install -r requirements.txt
+<span class="cmd">alias</span> vault=<span class="comment">"$(pwd)/vault"</span>
+
+<span class="comment"># 初始化（含恢复密钥）</span>
+<span class="cmd">vault init</span>
+<span class="comment"># 设置主密码 → 抄下恢复密钥</span>
+
+<span class="comment"># 解锁（15 分钟免密）</span>
+<span class="cmd">vault unlock</span>
+
+<span class="comment"># 存储密钥</span>
+<span class="cmd">vault add</span> github_token ghp_xxx -t api
+<span class="cmd">vault add</span> aws_prod --pair-id AKIA... --pair-secret wJalr... -t aws
+
+<span class="comment"># 安全使用 — 密钥不进 stdout</span>
+<span class="cmd">vault exec</span> github_token -- gh pr list
+<span class="cmd">vault exec</span> aws_prod --id-env ID --secret-env SECRET -- aws s3 ls
+
+<span class="comment"># 备份与恢复</span>
+<span class="cmd">vault export</span> backup.vaultbak       <span class="comment"># AES 加密，可放云盘</span>
+<span class="cmd">vault import</span> backup.vaultbak       <span class="comment"># 恢复</span></pre>
+</section>
+
+<section>
+<h2>命令一览</h2>
+<table>
+<tr><th>命令</th><th>说明</th></tr>
+<tr><td><code>init</code></td><td>初始化保险库，生成恢复密钥</td></tr>
+<tr><td><code>unlock</code> / <code>lock</code> / <code>touch</code></td><td>解锁 / 锁定 / 续期会话</td></tr>
+<tr><td><code>add &lt;k&gt; &lt;v&gt; -t tag</code></td><td>添加密钥（覆盖时提示"已更新"）</td></tr>
+<tr><td><code>add &lt;k&gt; --pair-id &lt;id&gt; --pair-secret &lt;s&gt;</code></td><td>添加配对密钥</td></tr>
+<tr><td><code>get &lt;k&gt; [--id|--secret]</code></td><td>获取明文</td></tr>
+<tr><td><code>list -t tag</code> / <code>search kw</code></td><td>列表 / 搜索</td></tr>
+<tr><td><code>delete &lt;k&gt;</code></td><td>删除密钥</td></tr>
+<tr><td><code>exec &lt;k&gt; [--id-env N] [--secret-env N] -- cmd</code></td><td>安全调用（密钥不进 stdout）</td></tr>
+<tr><td><code>export path</code> / <code>import path</code></td><td>加密备份 / 恢复</td></tr>
+<tr><td><code>chpass</code></td><td>更换主密码</td></tr>
+<tr><td><code>recover</code></td><td>用恢复密钥解锁（主密码丢失时）</td></tr>
+<tr><td><code>config set/get/unset</code></td><td>配置管理</td></tr>
+<tr><td><code>status</code></td><td>查看状态</td></tr>
+</table>
+</section>
+
+<section>
+<h2>AI 助手使用流程</h2>
+<pre><span class="comment"># 1. 聊天开始前，终端解锁一次</span>
+<span class="cmd">vault unlock</span>
+<span class="cmd">vault config set</span> session_timeout 28800   <span class="comment"># 8 小时</span>
+
+<span class="comment"># 2. 聊天中让 AI 直接调用</span>
+<span class="comment"># AI 执行: vault exec github_token -- gh pr list</span>
+<span class="comment"># AI 执行: vault exec openai_key --env OPENAI_API_KEY -- curl ...</span>
+<span class="comment"># → 密钥值不会出现在 AI 上下文</span>
+
+<span class="comment"># 3. 超时前 AI 可主动续期</span>
+<span class="comment"># AI 执行: vault touch</span></pre>
+</section>
+
+<section>
+<h2>安全设计</h2>
+<ul>
+  <li><strong>AES-256-GCM</strong> 认证加密，每个条目独立 nonce</li>
+  <li><strong>PBKDF2-SHA256</strong> 60 万次迭代派生密钥，抗暴力破解</li>
+  <li><strong>SQLite 仅存密文</strong>，键名/标签明文（便于查找），值全加密</li>
+  <li><strong>备份也加密</strong>：<code>.vaultbak</code> 文件可直接上传云盘</li>
+  <li><strong>会话超时</strong>：默认 15 分钟，可配置</li>
+  <li><strong>恢复密钥</strong>：主密码丢失时的备用解锁方式</li>
+</ul>
+</section>
+
+<section>
+<h2>恢复密钥</h2>
+<p>初始化时生成 64 位 hex 恢复密钥，主密码丢失时可用 <code>vault recover</code> 解锁：</p>
+<pre><span class="cmd">vault recover</span>
+<span class="comment"># 输入恢复密钥 → 解锁 → 立即 vault chpass 设新密码</span></pre>
+<p>恢复密钥存储在 <code>~/.vault/config.json</code> 中（加密保存），建议抄写到纸上或存入其他密码管理器。</p>
+</section>
+
+<footer>
+  <p>
+    <a href="https://github.com/g321net/vault">GitHub</a> ·
+    MIT License · Copyright (c) 2026 rush
+  </p>
+</footer>
+
+</div>
+</body>
+</html>
