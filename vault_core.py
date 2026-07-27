@@ -223,3 +223,37 @@ def _process_exists(pid: int) -> bool:
         return True
     except (OSError, ProcessLookupError):
         return False
+
+
+# ─── 恢复密钥 ───────────────────────────────────────────────
+
+def generate_recovery_key() -> str:
+    """生成 32 字节随机恢复密钥，返回 hex 字符串（64 字符）"""
+    return os.urandom(32).hex()
+
+
+def store_recovery_key(aes_key: bytes, recovery_key_hex: str) -> None:
+    """用恢复密钥加密 AES 密钥并存入 config.json"""
+    recovery_key_bytes = bytes.fromhex(recovery_key_hex)
+    encrypted = encrypt_blob(recovery_key_bytes, aes_key)
+    config = load_config()
+    config["recovery_payload"] = encrypted.hex()
+    save_config(config)
+
+
+def recover_session_key(recovery_key_hex: str) -> bytes:
+    """用恢复密钥解密 AES 密钥，返回可用于会话的 key"""
+    recovery_key_bytes = bytes.fromhex(recovery_key_hex)
+    config = load_config()
+    payload = config.get("recovery_payload")
+    if not payload:
+        raise ValueError("未设置恢复密钥，请先 vault init")
+    encrypted = bytes.fromhex(payload)
+    aes_key = decrypt_blob(recovery_key_bytes, encrypted)
+    return aes_key
+
+
+def has_recovery_key() -> bool:
+    """检查是否已设置恢复密钥"""
+    config = load_config()
+    return "recovery_payload" in config

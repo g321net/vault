@@ -397,6 +397,38 @@ def run_tests():
     save_config(config)
     session_set_key(old_key)
 
+    # 19. recovery key — 恢复密钥
+    print("\n19. 恢复密钥")
+    from vault_core import generate_recovery_key, store_recovery_key, recover_session_key, has_recovery_key
+
+    recovery_key = generate_recovery_key()
+    check("recovery: 生成 64 字符 hex", len(recovery_key) == 64)
+
+    store_recovery_key(old_key, recovery_key)
+    check("recovery: has_recovery_key", has_recovery_key())
+
+    recovered = recover_session_key(recovery_key)
+    check("recovery: 恢复的 key 等于原 key", recovered == old_key)
+
+    # 错误恢复密钥应失败
+    wrong_recovery = "00" * 32
+    try:
+        recover_session_key(wrong_recovery)
+        check("recovery: 错误密钥应失败", False)
+    except Exception:
+        check("recovery: 错误密钥失败", True)
+
+    # 用恢复密钥解锁后可以正常用
+    session_set_key(recovered)
+    val = get_secret("github_token")
+    check("recovery: 恢复后可读密钥", val == "ghp_updated789")
+
+    # 清理 recovery_payload
+    config = load_config()
+    del config["recovery_payload"]
+    save_config(config)
+    session_set_key(old_key)
+
     print(f"\n{'='*40}")
     print(f"结果: {passed} 通过, {failed} 失败")
     return failed == 0

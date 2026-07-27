@@ -47,6 +47,10 @@ from vault_core import (
     load_config,
     save_config,
     ensure_vault_dir,
+    generate_recovery_key,
+    store_recovery_key,
+    recover_session_key,
+    has_recovery_key,
 )
 from vault_db import (
     init_db,
@@ -87,8 +91,18 @@ def cmd_init() -> None:
     key = derive_key(password)
     verify_master_password(password)
     session_set_key(key)
+
+    # 生成恢复密钥
+    recovery_key = generate_recovery_key()
+    store_recovery_key(key, recovery_key)
+
     print("✓ 保险库初始化成功")
     print(f"  数据目录: {VAULT_DIR}")
+    print()
+    print("⚠️  恢复密钥（请妥善保管，主密码丢失时唯一恢复方式）：")
+    print(f"  {recovery_key}")
+    print()
+    print("  建议：抄写到纸上或存入其他密码管理器。")
 
 
 def cmd_unlock() -> None:
@@ -295,14 +309,44 @@ def cmd_chpass() -> None:
     new_key = derive_key(new_password)
     count = re_encrypt_all(old_key, new_key)
 
-    # 更新验证令牌
+    # 更新验证令牌和恢复密钥
     config = load_config()
     config["verify_token"] = encrypt_value(new_key, "VAULT_OK").hex()
     save_config(config)
+    recovery_key = generate_recovery_key()
+    store_recovery_key(new_key, recovery_key)
 
     # 更新会话密钥
     session_set_key(new_key)
     print(f"✓ 主密码已更换，{count} 条密钥已重新加密")
+    print()
+    print("⚠️  新的恢复密钥（请妥善保管）：")
+    print(f"  {recovery_key}")
+
+
+def cmd_recover() -> None:
+    """用恢复密钥解锁（主密码丢失时的备用方案）"""
+    if not db_exists():
+        print("错误: 保险库未初始化", file=sys.stderr)
+        sys.exit(1)
+    if not has_recovery_key():
+        print("错误: 未设置恢复密钥，请重新 vault init", file=sys.stderr)
+        sys.exit(1)
+
+    print("=== 恢复模式 ===")
+    print("输入恢复密钥（64 位十六进制字符串）")
+    recovery_key = getpass.getpass("恢复密钥: ").strip()
+
+    try:
+        key = recover_session_key(recovery_key)
+    except Exception:
+        print("错误: 恢复密钥无效", file=sys.stderr)
+        sys.exit(1)
+
+    session_set_key(key)
+    remaining = session_remaining()
+    print(f"✓ 已用恢复密钥解锁 (剩余 {remaining // 60} 分 {remaining % 60} 秒)")
+    print("  建议立即 vault chpass 设置新主密码")
 
 
 def cmd_status() -> None:
@@ -440,6 +484,8 @@ def main():
 
     sub.add_parser("chpass", help="更换主密码")
 
+    sub.add_parser("recover", help="用恢复密钥解锁（主密码丢失时使用）")
+
     p_config = sub.add_parser("config", help="管理配置")
     p_config_sub = p_config.add_subparsers(dest="config_cmd")
     p_config_sub.add_parser("get", help="查看配置").add_argument("key", nargs="?", default=None, help="配置项名")
@@ -470,6 +516,7 @@ def main():
         "exec": lambda: cmd_exec(args),
         "touch": cmd_touch,
         "chpass": cmd_chpass,
+        "recover": cmd_recover,
         "config": lambda: cmd_config(args),
         "status": cmd_status,
     }
