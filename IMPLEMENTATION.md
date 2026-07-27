@@ -1,6 +1,6 @@
 # 本地密钥保管箱 (Vault) — 实施计划文档
 
-> 版本 1.2 | 2026-07-27 | 65 项测试全部通过
+> 版本 1.3 | 2026-07-27 | 70 项测试全部通过
 
 ---
 
@@ -234,6 +234,7 @@ session_set_key(key) → 写 ~/.vault/.session { timestamp, key_hex }
 | `vault unlock` | — | 输入主密码解锁会话 | — |
 | `vault lock` | — | 立即锁定，清除会话 | — |
 | `vault touch` | — | 刷新会话时间戳 | ✓ |
+| `vault chpass` | — | 更换主密码（重新加密所有条目） | ✓ |
 | `vault add` | `<key> [value] [-t tag]` | 添加/更新密钥（value 可管道传入） | ✓ |
 | `vault add` | `<key> --pair-id <ID> --pair-secret <S>` | 存储配对密钥 (Access Key + Secret) | ✓ |
 | `vault get` | `<key> [--id\|--secret]` | 获取密钥明文（--id/--secret 提取配对字段） | ✓ |
@@ -317,7 +318,7 @@ vault exec github_token -- gh api /user/repos
 
 ## 8. 测试覆盖
 
-测试文件 `test_vault.py` 包含 65 项自动化测试：
+测试文件 `test_vault.py` 包含 70 项自动化测试：
 
 | 测试组 | 项数 | 覆盖内容 |
 |--------|:--:|------|
@@ -335,7 +336,8 @@ vault exec github_token -- gh api /user/repos
 | touch 续期 | 4 | 续期、锁定后拒绝 |
 | config 配置 | 6 | set/get/unset |
 | 配对密钥 | 11 | add/get/exec 配对、双注入、JSON 格式 |
-| **合计** | **65** | |
+| 更换主密码 | 5 | re_encrypt、旧密钥失效、新密钥验证 |
+| **合计** | **70** | |
 
 运行测试：
 
