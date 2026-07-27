@@ -23,6 +23,10 @@ vault init
 
 按提示设置**主密码**（≥8 位，这是加密所有密钥的唯一钥匙，**请务必记住**）。
 
+初始化完成后会显示一串 **64 位恢复密钥**，把它抄下来存好。主密码丢了可以用 `vault recover` 恢复。
+
+### 3. 解锁
+
 ### 3. 解锁
 
 ```bash
@@ -208,6 +212,10 @@ vault touch
 # 更换主密码（重新加密所有条目）
 vault chpass
 
+# 主密码丢失时用恢复密钥解锁
+vault recover
+# 输入恢复密钥 → 解锁 → 建议立即 vault chpass
+
 # 调整超时
 vault config set session_timeout 3600    # 1 小时
 vault config set session_timeout 28800   # 8 小时
@@ -225,6 +233,7 @@ vault config get session_timeout         # 查看当前值
 | `vault lock` | 锁定 | — |
 | `vault touch` | 续期 | — |
 | `vault chpass` | 更换主密码 | — |
+| `vault recover` | 恢复密钥解锁 | — |
 | `vault add <k> <v> -t <tag>` | 保存单密钥 | `vault add gh_token xyz -t api` |
 | `vault add <k> --pair-id <id> --pair-secret <s>` | 保存配对密钥 | `vault add aws --pair-id AKIA... --pair-secret wJalr...` |
 | `vault get <k> [--id\|--secret]` | 获取明文 | `vault get gh_token` / `vault get aws --id` |

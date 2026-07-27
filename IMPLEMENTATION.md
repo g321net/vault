@@ -1,6 +1,6 @@
 # 本地密钥保管箱 (Vault) — 实施计划文档
 
-> 版本 1.3 | 2026-07-27 | 70 项测试全部通过
+> 版本 1.4 | 2026-07-27 | 75 项测试全部通过
 
 ---
 
@@ -224,6 +224,27 @@ session_set_key(key) → 写 ~/.vault/.session { timestamp, key_hex }
 | `vault config get session_timeout` | 查看当前值 |
 | `vault config unset session_timeout` | 恢复默认 |
 
+### 4.4 恢复密钥
+
+主密码丢失时的备用解锁机制。初始化时生成 64 位 hex 随机恢复密钥，用其对当前 AES 密钥加密后存储为 `config.json` 中的 `recovery_payload`。
+
+```
+vault init
+  ├── derive_key(master_password) → aes_key
+  ├── recovery_key = os.urandom(32).hex()    # 64 字符 hex
+  └── store_recovery_key(aes_key, recovery_key)
+         encrypt_blob(recovery_key, aes_key) → recovery_payload
+
+vault recover
+  ├── 用户输入 recovery_key
+  ├── decrypt_blob(recovery_key, recovery_payload) → aes_key
+  └── session_set_key(aes_key) → 正常使用
+
+vault chpass 后 → 重新生成 recovery_key 并更新 recovery_payload
+```
+
+**恢复后建议**：立即 `vault chpass` 设置新主密码，重新获得正常的密码解锁方式。
+
 ---
 
 ## 5. CLI 命令完整清单
@@ -235,6 +256,7 @@ session_set_key(key) → 写 ~/.vault/.session { timestamp, key_hex }
 | `vault lock` | — | 立即锁定，清除会话 | — |
 | `vault touch` | — | 刷新会话时间戳 | ✓ |
 | `vault chpass` | — | 更换主密码（重新加密所有条目） | ✓ |
+| `vault recover` | — | 用恢复密钥解锁（主密码丢失时） | — |
 | `vault add` | `<key> [value] [-t tag]` | 添加/更新密钥（value 可管道传入） | ✓ |
 | `vault add` | `<key> --pair-id <ID> --pair-secret <S>` | 存储配对密钥 (Access Key + Secret) | ✓ |
 | `vault get` | `<key> [--id\|--secret]` | 获取密钥明文（--id/--secret 提取配对字段） | ✓ |
@@ -318,7 +340,7 @@ vault exec github_token -- gh api /user/repos
 
 ## 8. 测试覆盖
 
-测试文件 `test_vault.py` 包含 70 项自动化测试：
+测试文件 `test_vault.py` 包含 75 项自动化测试：
 
 | 测试组 | 项数 | 覆盖内容 |
 |--------|:--:|------|
@@ -337,7 +359,8 @@ vault exec github_token -- gh api /user/repos
 | config 配置 | 6 | set/get/unset |
 | 配对密钥 | 11 | add/get/exec 配对、双注入、JSON 格式 |
 | 更换主密码 | 5 | re_encrypt、旧密钥失效、新密钥验证 |
-| **合计** | **70** | |
+| 恢复密钥 | 5 | 生成、存储、恢复、错误密钥、恢复后可读 |
+| **合计** | **75** | |
 
 运行测试：
 
